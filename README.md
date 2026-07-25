@@ -16,10 +16,7 @@ A set of quality-of-life improvements for Spotify's UI: lyric translation and tr
 - **Settings panel** — all of the above via a side panel inside Spotify.
 - **Download lyrics** — save the currently displayed lyrics combination (original, pronunciation, translation) as a plain-text file.
 
-<p align="center">
-  <img src="public/control-panel.png" alt="Control Panel" width="20%" align="middle" />
-  <img src="public/lyrics-panel.png" alt="Lyrics Panel" width="76%" align="middle" />
-</p>
+![BetterSongify Screenshot](public/screenshot.png)
 
 ## How It Works
 
