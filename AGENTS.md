@@ -131,10 +131,11 @@ web-only regression as a logic bug.
 | `[data-testid="lyrics-button"]` + player-bar selectors | `SELECTORS`, `findLyricsControlButton()` | "BetterSpotify" panel button placement | Button never appears; panel unreachable |
 | `[data-testid="context-item-info-title"]` / `-artist` | `SELECTORS.nowPlayingTitle` / `-Artist` | .txt download header; track-change signal for auto-open lyrics | Downloads say "Unknown Song"; lyrics auto-open only once per session |
 | `[data-testid="recommended-track"]` (one wrapper around the whole "Recommended" section of editable playlists, despite the singular name; fallback hook: `div.playlistRecommenderContainer` inside it) | `SELECTORS.playlistRecommendations` + a hardcoded copy in the `ensureBaseStyles` CSS (CSS can't read constants — keep in sync) | Hide Recommended Songs toggle | Recommended section reappears at the bottom of playlists despite the toggle; no errors. Verified on `open.spotify.com` July 2026, assumed identical on desktop |
-| `[data-testid="lyrics-button"]` `disabled`/`aria-pressed`/`data-active` semantics; activates only on a full pointer-event sequence (`synthesizeClick`), plain `.click()` is ignored (web player, July 2026) | `enforceLyricsOpen()`, `synthesizeClick()` | Auto-open lyrics | Lyrics view stops opening on track change, or (if "active" detection breaks) our click closes a lyrics view that was already open — watch for the view toggling off ~2s after a track change |
+| `[data-testid="lyrics-button"]` `disabled`/`aria-pressed`/`data-active` semantics; activates only on a full pointer-event sequence (`synthesizeClick`), plain `.click()` is ignored (web player, July 2026) | `enforceLyricsOpen()`, `synthesizeClick()`, lyrics branch of `handleVideoToggleClick()` | Auto-open lyrics (enforcement + click-capture mirror of the setting) | Lyrics view stops opening on track change, or (if "active" detection breaks) our click closes a lyrics view that was already open — watch for the view toggling off ~2s after a track change. If the `aria-pressed`/`data-active` semantics break, the click-capture mirror also inverts: opening lyrics manually would turn the setting off and vice versa |
 | Button labeled "Switch to video" / "Switch to audio" (aria-label or text, **English only**) | `VIDEO_TOGGLE_PATTERNS`, `videoToggleKind()` | Sticky video preference; "Switch to audio" presence doubles as the "video is playing" gate for expand enforcement | Video reverts to audio on every track change again — the original bug resurfaces, silently; expand enforcement also stops firing |
 | Buttons with aria-label "Expand Now Playing view" / "Minimize Now Playing view" (**English only**, no testid) | `NPV_EXPAND_PATTERNS`, `findVideoToggles()`, click-capture in `handleVideoToggleClick` | Expand music video (enforcement + capturing the user's own expand/minimize clicks as the preference) | Video stays in the sidebar despite the toggle, and manual expand/minimize stops updating the toggle; no errors. Verified on `open.spotify.com` July 2026, incl. that clicking expand while expanded is a no-op. Only verified for the NPV-header button — if the desktop video-overlay expand button carries a different aria-label, its clicks silently won't be captured |
 | `main` element having zero width ⇔ expanded Now Playing view is covering it | `SELECTORS.mainView`, `isNowPlayingExpanded()` | Expand music video ("already expanded" signal + panel-off collapse gate) | Wrong-positive: toggle-off stops collapsing the view; wrong-negative: harmless redundant expand clicks (no-op). Verified on `open.spotify.com` July 2026 |
+| Player-bar text-link button reading "Playing on <device>" while casting via Spotify Connect (**English only** — an encore `textLink`, no testid, no aria-label; text is the only hook) | `REMOTE_PLAYBACK_PATTERN`, `isPlayingRemotely()` | Remote-playback guard: suspends both video enforcements while playback is on another device | Enforcement fights audio/video switches made on the casting device (local clicks are relayed to it) — the July 2026 bug resurfaces. Same symptom on non-English clients, where the guard is silently off. Note the pill and expand buttons still render while casting (verified `open.spotify.com` July 2026), so their presence must never be used as a "playing locally" signal |
 | `translate.googleapis.com` `gtx` endpoint response shape (`payload[0]`, index 3 = romanization) | `translateText()` | All translations | Every line dimmed (`untranslated`); cache stops growing |
 | `xpui.spa` is a zip with `index.html` at root | `install-macos.sh` | Install itself | Installer errors "Failed to locate Spotify app layout" |
 
@@ -159,7 +160,11 @@ choice genuinely sticky. Design decisions that must survive refactors:
   click would re-enter the preference setter (harmless today, a loop risk
   under refactor). Do not "simplify" this away.
 - `enforceVideoPreference` has a 3-second debounce (`state.lastVideoAutoClick`)
-  so we never fight the user or a video that fails to load.
+  **and** a cap of 3 auto-clicks per track (`state.videoAutoClickKey`/
+  `-Count`, reset when the panel toggle is re-enabled) so we never fight
+  the user or a video that fails to load — an uncapped retry loop on a
+  failing video makes Spotify pop its "can't play this right now" toast
+  every ~3s for the whole track (observed July 2026).
 - Audio preference is **intentionally not enforced** — audio is Spotify's
   default, so preferring audio means doing nothing.
 - The label regex is English-only. Non-English clients silently lose this
@@ -210,6 +215,19 @@ interrupts and never restores it on the next video track;
 - **Once per track** (`state.lastExpandAutoKey`, keyed by
   `getNowPlayingKey()`): minimizing mid-track is respected, same philosophy
   as auto-open lyrics. Not continuous enforcement.
+- The key is consumed on **observed expansion** (zero-width `main`) or a
+  captured manual click — **never right after our own expand click**.
+  Track-change re-renders (worst coming off the lyrics page, which also
+  navigates) can swap the button out between scan and click, silently
+  no-opping it; consuming on click stranded the video in the side panel
+  for the whole track (July 2026 bug). Failed clicks retry on a 3s
+  debounce (`state.lastExpandAutoClick`), capped at 3 per track
+  (`state.expandAutoClickKey`/`-Count`) — if expansion is never observed,
+  the zero-width-`main` signal is probably broken (web-verified only) and
+  an unbounded click loop against an unknown desktop DOM is worse than
+  giving up on the track. Esc-close is still respected because the
+  expansion mutation triggers observe-and-consume long before a human can
+  press Esc. Don't "simplify" back to consume-on-click.
 - Gated on video actually playing: the "Switch to audio" pill must be
   present. The key is **not consumed** until then, so the enforcement
   naturally waits for sticky video to switch streams first.
@@ -231,6 +249,27 @@ interrupts and never restores it on the next video track;
   constructed "click" back would double-fire click-style handlers and
   revert toggles.
 
+### Remote playback (Spotify Connect)
+
+- While the player bar shows "Playing on <device>", **both video
+  enforcements stand down** (`isPlayingRemotely()`, checked once per scan
+  in `enforceVideoFeatures`): the local client is only a remote control,
+  and the pill/expand buttons — which still render locally while casting —
+  relay clicks to the casting device, so enforcement was fighting switches
+  the user made there (July 2026 report).
+- Remote switches deliberately do **not** update `preferVideo`: from this
+  client's DOM, a remote switch-to-audio is indistinguishable from
+  Spotify's own per-track auto-revert or a failed video load, so capturing
+  it would corrupt the preference. Preferences change only via local
+  trusted clicks (`handleVideoToggleClick` stays active while casting) or
+  the panel.
+- Auto-open lyrics stays active while casting (it's a local-only view),
+  and skips the video-precedence gate — nothing will expand locally, so
+  lyrics must not defer to a pill that enforcement will never act on.
+- The guard fails **open**: if the label breaks (or the client is
+  non-English), enforcement resumes fighting remote switches — see the
+  contract table row.
+
 ### Auto-open lyrics
 
 - Enforcement is **once per track**, keyed by player-bar `title|artist`
@@ -240,9 +279,16 @@ interrupts and never restores it on the next video track;
 - The track-change signal must come from the player bar, **not**
   `getTrackKey()` — that hashes lyric lines, which only exist while the
   lyrics view is already open (chicken-and-egg).
-- Unlike sticky video there is deliberately **no click-capture mirror**: the
-  lyrics button is an ordinary toggle users press constantly; capturing it
-  would silently flip the setting.
+- Like sticky video, the preference **mirrors trusted clicks on Spotify's
+  own lyrics button** (`handleVideoToggleClick`, July 2026 — replaced the
+  earlier deliberate no-capture design at the user's request): a click that
+  opens lyrics turns auto-open on, one that closes them turns it off. The
+  direction comes from the **pre-click** `aria-pressed`/`data-active` state,
+  readable because the capture-phase listener runs before Spotify flips the
+  button; a disabled button is ignored (it toggles nothing). A captured
+  click also consumes the once-per-track key, so enforcement can't fight
+  the choice mid-track. Non-click closes (Esc, navigating away) are not
+  captured and only get the once-per-track behavior above.
 - A disabled lyrics button (track has no lyrics) consumes the key without
   clicking. A missing button does **not** consume it — the player bar may
   simply not have rendered yet.
@@ -255,9 +301,26 @@ interrupts and never restores it on the next video track;
   `lyrics-container` testid (only `lyrics-line`s) — the button's
   `aria-pressed`/`data-active` state is the only reliable "already open"
   signal there. Don't reduce the open-check to container presence.
-- Runs from the 2s interval only; a ≤2s delay before lyrics open is
-  accepted (unlike video, there is no user-visible "wrong stream" state to
-  minimize).
+- Runs from the video-observer rAF path (riding its single button scan)
+  plus the 2s interval as backstop. It was interval-only originally, but
+  the video-precedence grace below needs frame-level pill detection to
+  stay short — don't move it back to interval-only without also growing
+  the grace.
+- **Expanded video outranks lyrics**: when "Expand Music Video" is also on
+  and the track's video will play expanded ("Switch to audio" pill present,
+  or "Switch to video" present with sticky video on), the lyrics key is
+  consumed without clicking — opening lyrics would cover/collapse the
+  expanded view. Tracks without a video still auto-open, but only after a
+  ~1.5s grace (`state.lyricsOpenDeferUntil`): the pill's absence is the
+  only "no video" signal and it renders a beat after track change, so the
+  wait is what lets video win the race. The grace is also the entire
+  lyrics-open delay on video-less tracks (user-visible regression when it
+  was 4s, July 2026), so keep it just above the pill's render latency —
+  and if a slow pill does lose the race, the expand enforcement's retries
+  recover by expanding over the open lyrics view. The grace does **not**
+  consume the key, and only applies while both video preferences are on —
+  with sticky video off, a video pill alone means nothing will
+  auto-expand, so lyrics open normally.
 
 ### Lyrics pipeline
 
