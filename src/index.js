@@ -332,11 +332,16 @@
       .better-songify-row .better-songify-select { width: auto; flex: 1; min-width: 0; }
       .better-songify-range { flex: 1; min-width: 0; accent-color: #1ed760; cursor: pointer; }
       .better-songify-range-value { flex: 0 0 auto; min-width: 42px; text-align: right; color: #b3b3b3; font-size: 12px; font-variant-numeric: tabular-nums; }
-      .better-songify-btn { min-height: 38px; border: 0; border-radius: 8px; padding: 0 12px; font-weight: 800; cursor: pointer; }
+      .better-songify-btn { min-height: 38px; border: 0; border-radius: 8px; padding: 0 12px; font-weight: 800; cursor: pointer; transition: background .15s ease, transform .1s ease, opacity .15s ease; }
       .better-songify-btn:disabled { opacity: .65; cursor: progress; }
+      .better-songify-btn:hover:not(:disabled) { transform: scale(1.02); }
+      .better-songify-btn:active:not(:disabled) { transform: scale(0.98); }
       .better-songify-btn-primary { background: #1ed760; color: #000; }
+      .better-songify-btn-primary:hover:not(:disabled) { background: #3be477; }
       .better-songify-btn-secondary { background: rgba(255,255,255,.1); color: #fff; }
-      .better-songify-btn-text { background: none; color: #fff; border: 0; cursor: pointer; }
+      .better-songify-btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,.2); color: #fff; }
+      .better-songify-btn-text { background: none; color: #b3b3b3; border: 0; cursor: pointer; transition: color .15s ease; }
+      .better-songify-btn-text:hover { color: #fff; }
       #better-songify-tab-btn { background: transparent; border: none; cursor: pointer; padding: 8px 16px; margin: 0 8px; font-family: inherit; font-weight: 700; font-size: 14px; color: #b3b3b3; border-radius: 20px; transition: all .2s cubic-bezier(.4,0,.2,1); outline: none; }
       #better-songify-tab-btn:hover { color: #fff; background: rgba(255,255,255,.1); }
       #better-songify-tab-btn.active { color: #000 !important; background: #fff !important; }
@@ -1178,7 +1183,6 @@
 
         <div class="better-songify-section" style="margin-top:auto">
           <button class="better-songify-btn better-songify-btn-primary" id="better-songify-btn-download">Download Lyrics</button>
-          <a class="better-songify-btn better-songify-btn-secondary" id="better-songify-btn-kofi" href="https://ko-fi.com/orangechuice" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none;gap:6px">☕ Support on Ko-fi</a>
           <button class="better-songify-btn better-songify-btn-secondary" id="better-songify-btn-restore">Restore Defaults</button>
         </div>
       </div>
