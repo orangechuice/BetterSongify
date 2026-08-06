@@ -27,12 +27,12 @@ LEGACY_SCRIPT_TAG_1='<script src="BetterSpotify.js"></script>'
 LEGACY_SCRIPT_TAG_2='<script src="SpotifyLyrics.js"></script>'
 
 logo() {
-    echo "${CYAN} ____       _   _             ____              _   _  __       ${RESET}"
-    echo "${CYAN}| __ )  ___| |_| |_ ___ _ __ / ___| _ __   ___ | |_(_)/ _|_   _ ${RESET}"
-    echo "${CYAN}|  _ \\ / _ \\ __| __/ _ \\ '__|\\___ \\| '_ \\ / _ \\| __| | |_| | | |${RESET}"
-    echo "${CYAN}| |_) |  __/ |_| ||  __/ |    ___) | |_) | (_) | |_| |  _| |_| |${RESET}"
-    echo "${CYAN}|____/ \\___|\\__|\\__\\___|_|   |____/| .__/ \\___/ \\__|_|_|  \\__, |${RESET}"
-    echo "${CYAN}                                   |_|                    |___/ ${RESET}"
+    echo "${CYAN} ____       _   _            ____                    _  __       ${RESET}"
+    echo "${CYAN}| __ )  ___| |_| |_ ___ _ __/ ___|  ___  _ __   __ _(_)/ _|_   _ ${RESET}"
+    echo "${CYAN}|  _ \\ / _ \\ __| __/ _ \\ '__\\___ \\ / _ \\| '_ \\ / _\` | | |_| | | |${RESET}"
+    echo "${CYAN}| |_) |  __/ |_| ||  __/ |   ___) | (_) | | | | (_| | |  _| |_| |${RESET}"
+    echo "${CYAN}|____/ \\___|\\__|\\__\\___|_|  |____/ \\___/|_| |_|\\__, |_|_|  \\__, |${RESET}"
+    echo "${CYAN}                                               |___/       |___/ ${RESET}"
     echo ""
     echo "${GRAY} BetterSongify Local Installer for macOS ${RESET}"
     echo "${GRAY}---------------------------------------------------${RESET}"
